@@ -1,0 +1,11 @@
+{
+    "name":"harendra",
+    "opusername":"harendraseervi",
+    "email":"harendraseervi@gmail.com",
+    "password":"1234",
+    "cf":"seervicf",   
+    "cc":"seervicc",
+    "sp":"seervisp",
+    "at":"seerviat",
+    "hr":"seervihr"
+}
