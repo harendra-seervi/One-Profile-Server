@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const User = require('./db/user');
 const app = express();
+const cheerio = require('cheerio');
+const axios = require('axios');
+const platformRoutes = require('./routes/platform.routes');
 app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
 app.use(express.json());
 const jwtKey = 'e-com';
@@ -11,8 +14,6 @@ const jwtKey = 'e-com';
 
 // leetcode API  ->  https://leetcode-public-api.cyclic.app/user/harendra_seervi/contests
 // https://leetcode-public-api.cyclic.app/
-
-
 
 app.get('/register/:opusername', async (req, res) => {
     let result = await User.find({ "opusername": req.params.opusername });
@@ -64,6 +65,11 @@ async function getCFRating(userHandle){
         return 0;
     }
 }
+
+app.use(express.urlencoded({ extended: false }));
+
+app.use('/api', platformRoutes);
+
 
 function sortAndAddRank(users){
     
@@ -123,6 +129,18 @@ function verifyToken(req, res, next) {
     }
 }
 
+app.get('/profile/:opusername', async (req, res) => {
+    let result = await User.find({ "opusername": req.params.opusername });
+    // result=await result.json();
+    if (result.length > 0) {
+        // console.log(result);
+        res.send(result);
+    }
+    else {
+        res.send(true);
+    }
+})
+
 app.listen(5000, () => {
     console.log("Server up and running on port: 5000");
-}) 
+})
