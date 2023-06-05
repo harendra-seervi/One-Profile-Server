@@ -2,6 +2,9 @@ const cheerio = require('cheerio');
 const axios = require('axios');
 const { success, error } = require('../utils/responseWrapper');
 
+exports.hackerrankController = async (req, res) => {
+    res.send(0);
+}
 exports.atCoderController = async (req, res) => {
     try {
         const userHandle = req.params.userHandle;

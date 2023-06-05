@@ -11,6 +11,12 @@ const userSchema=new mongoose.Schema({
     sp: String,
     at: String,
     hr: String,
+    cfrating: String,
+    ccrating: String,
+    sprating: String,
+    atrating: String,
+    hrrating: String,    
+    lastupdate: String,
 });
 
 module.exports = mongoose.model("users",userSchema);
