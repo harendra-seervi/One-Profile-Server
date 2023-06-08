@@ -3,24 +3,76 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const User = require('./db/user');
+const Post = require('./db/posts');
 const app = express();
 const cheerio = require('cheerio');
 const axios = require('axios');
 const platformRoutes = require('./routes/platform.routes');
 const cron = require('node-cron');
-const jwtKey = process.env.JWT_PASS;
-
 app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+const jwtKey = process.env.JWT_PASS;
 
-//Login Page backend
+app.get('/register/:opusername', async (req, res) => {
+    let result = await User.find({ "opusername": req.params.opusername });
+    if (result.length > 0) {
+        res.send(false);
+    }
+    else {
+        res.send(true);
+    }
+})
+
+app.post('/register', async (req, res) => {
+    let user = new User(req.body);
+    let result = await user.save();
+    res.send({ result });
+});
+
+app.post('/', verifyToken, async(req,res) => {
+    const {title,image,caption} = req.body;
+    const {_id} = req._id;
+    if(!title || !image){
+        res.status(500).send({message: "Title and Image url is required"});
+    }
+
+    let newPost = new Post({title,image,owner: _id});
+    let result = await newPost.save();
+    res.status(201).send({message: "Post created successfully", newPost: result});
+})
+
+app.post('/like',verifyToken, async(req,res) => {
+    const {postId} = req.body;
+    const {_id} = req._id;
+    if(!postId)
+    res.status(500).send({message: "Post id is required"});
+
+    const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).send({message: "Post not found"});
+        }
+
+        if (post.likes.includes(_id)) {
+            const index = post.likes.indexOf(_id);
+
+            post.likes.splice(index, 1);
+            await post.save();
+            res.status(200).send({message: "UnLiked"});
+        } else {
+            post.likes.push(_id);
+            await post.save();
+            res.status(200).send({message: "Unliked"});
+        }
+
+})
+
 app.post('/login', async (req, res) => {
     if (req.body.email && req.body.password) {
-        let user = await User.find(req.body).select("-password");
-        if (user.length) {
-            const token = jwt.sign({ username: user[0]._id }, jwtKey, { expiresIn: "1m" })
-            res.send({ username: user[0].opusername, auth: token });
+        let user = await User.findOne(req.body).select("-password");
+        console.log(user);
+        if (user) {
+            const accessToken = jwt.sign({ _id : user._id }, jwtKey, {expiresIn: '2h'});
+            res.send({user,auth: accessToken});
         }
         else {
             res.send({ result: "No user found 1" });
@@ -31,42 +83,12 @@ app.post('/login', async (req, res) => {
     }
 });
 
-
-//Register Page backend
-app.get('/register/:opusername', async (req, res) => {
-    let result = await User.find({ "opusername": req.params.opusername });
-    if (result.length > 0) {
-        res.send(false);
-    }
-    else {
-        res.send(true);
-    }
-})
-app.post('/register', async (req, res) => {
-    let user = new User(req.body);
-    let result = await user.save();
-    res.send({ result });
-});
-
-
-//Profile Page backend
-app.get('/profile/:opusername', async (req, res) => {
-    let result = await User.find({ "opusername": req.params.opusername });
-    if (result.length > 0) {
-        res.send(result);
-    }
-    else {
-        res.send(true);
-    }
-})
-
-//messaging Page backend
 app.post('/messaging', verifyToken, async (req, res) => {
-    return res.send({ "val": "Here is all messages" });
+    return res.json({ "val": "Here is all messages" });
 });
 
+app.use(express.urlencoded({ extended: false }));
 
-//Rating Page backend
 function sortAndAddRank(users) {
     users.sort(function (a, b) {
         const ratingOne = a.rating,
@@ -95,6 +117,7 @@ async function getCFRating(userHandle) {
         return 0;
     }
 }
+
 async function getCF(username) {
     try {
         const userHandle = username;
@@ -129,6 +152,7 @@ async function getCF(username) {
         return 0;
     }
 }
+
 async function getCC(username) {
     try {
         const userHandle = username;
@@ -216,6 +240,7 @@ function getHR(username) {
     //Not implement yet so we consider this to be 0
     return 0;
 }
+
 async function updateRating() {
     const currentDate = new Date();
     let formattedDate = currentDate.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
@@ -241,12 +266,13 @@ async function updateRating() {
     }));
     userDb = userWithRating;
 }
+
 app.get('/ratings', async (req, res) => {
     try {
         let userDb = await User.find({});
         let userWithRating = await Promise.all(userDb.map(async (user) => {
-            let val = Math.max(user.cfrating, Number(user.ccrating) - 612, Number(user.atrating) + 222, Number(user.sprating) - 317);
-            if (val <= 300) val = 0;
+            let val=Math.max(user.cfrating,Number(user.ccrating)-612,Number(user.atrating)+222,Number(user.sprating)-317);
+            if(val<=300) val=0;
             return {
                 ...user._doc,
                 rating: val,
@@ -259,29 +285,38 @@ app.get('/ratings', async (req, res) => {
     }
 });
 
-//verify token function in JWT
 function verifyToken(req, res, next) {
     let token = req.headers['authorization'];
     if (token) {
         token = token.split(' ');
         token = token[1];
-        token = jwt.verify(JSON.parse(token), jwtKey);
-        if (token) {
+       const token = jwt.verify(JSON.parse(token), jwtKey);
+       if(token)
+       {
             req._id = token._id;
             next();
-        }
-        else {
-            res.status(401).send({ result: "Please add valid token with headers" });
-        }
+       }
+       else
+       {
+        res.status(401).send({ result: "Please add valid token with headers" });
+       }
     }
     else {
-        res.status(406).send({ result: "Please add token with headers" });
+        res.status(401).send({ result: "Please add token with headers" });
     }
 }
 
-//Implemented cron-jobs for updating rating in database
+app.get('/profile/:opusername' ,async (req, res) => {
+    let result = await User.find({ "opusername": req.params.opusername });
+    if (result.length > 0) {
+        res.send(result);
+    }
+    else {
+        res.send(true);
+    }
+})
+// updateRating();
 cron.schedule('0 */4 * * *', updateRating);
-
 app.listen(5000, () => {
     console.log("Server up and running on port: 5000");
 })
