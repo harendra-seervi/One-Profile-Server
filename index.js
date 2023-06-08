@@ -214,6 +214,7 @@ async function getAT(username) {
 }
 function getHR(username) {
     //Not implement yet so we consider this to be 0
+    //hello
     return 0;
 }
 async function updateRating() {
