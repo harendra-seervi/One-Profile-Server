@@ -385,6 +385,10 @@ app.post('/blog/like', verifyToken, async (req, res) => {
     res.send({likeCount: givenPost.like.length}); // Send status code 201 (Created)
 });
 
+app.get('/', (req,res)=> {
+    res.send("Server is up and running");
+})
+
 
 
 app.post('/problemset/changestatus', async (req, res) => {
