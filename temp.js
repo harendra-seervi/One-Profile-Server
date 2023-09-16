@@ -9,7 +9,7 @@ const cheerio = require('cheerio');
 const axios = require('axios');
 const platformRoutes = require('./routes/platform.routes');
 const cron = require('node-cron');
-app.use(cors({ origin: 'https://oneprofileop.onrender.com', credentials: true }));
+app.use(cors({ origin: 'https://one-profile-client.vercel.app', credentials: true }));
 app.use(express.json());
 const jwtKey = process.env.JWT_PASS;
 

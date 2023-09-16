@@ -15,7 +15,7 @@ const morgan = require('morgan');
 const jwtKey = process.env.JWT_PASS;
 const blogModel = require('./db/blog');
 
-app.use(cors({ origin: 'https://oneprofileop.onrender.com', credentials: true }));
+app.use(cors({ origin: 'https://one-profile-client.vercel.app', credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(morgan("common"));
