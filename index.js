@@ -53,6 +53,7 @@ app.get('/register/:opusername', async (req, res) => {
         res.send(true);
     }
 })
+
 app.post('/register', async (req, res) => {
     let user = new User(req.body);
     let result = await user.save();
@@ -95,16 +96,7 @@ function sortAndAddRank(users) {
     })
     return newUsers;
 }
-async function getCFRating(userHandle) {
-    let result = await fetch(`https://codeforces.com/api/user.info?handles=${userHandle}`);
-    result = await result.json();
-    if (result.status === "OK")
-        return result.result[0].rating;
-    else {
-        console.log(result);
-        return 0;
-    }
-}
+
 async function getCF(username) {
     try {
         const userHandle = username;
@@ -270,7 +262,7 @@ app.get('/ratings', async (req, res) => {
     }
 });
 
-//verify token function in JWT
+//verify token function in JWT    
 function verifyToken(req, res, next) {
     let token = req.headers['authorization'];
     if (token) {
@@ -301,6 +293,7 @@ app.post('/problemset/postproblem', async (req, res) => {
     console.log("Ps", ps);
     res.send(ps);
 })
+
 app.get('/problemset', async (req, res) => {
     let ps = await problemset.find({});
     // console.log("Ps", ps);
