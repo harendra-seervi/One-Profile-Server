@@ -26,6 +26,10 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+app.get('/',(req,res)=>{
+    res.send("Server is running...");
+})
+
 //Login Page backend
 app.post('/login', async (req, res) => {
     if (req.body.email && req.body.password) {
