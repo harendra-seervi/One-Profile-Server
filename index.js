@@ -13,9 +13,13 @@ const multer = require('multer');
 const cron = require('node-cron');
 const morgan = require('morgan');
 const jwtKey = process.env.JWT_PASS;
-const blogModel = require('./db/blog');
 
-app.use(cors({ origin: 'https://one-profile-client.vercel.app', credentials: true }));
+// Allow CORS from production origin, but permit localhost in development for local testing
+if (process.env.NODE_ENV === 'production') {
+    app.use(cors({ origin: 'https://one-profile-client.vercel.app', credentials: true }));
+} else {
+    app.use(cors({ origin: true, credentials: true }));
+}
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(morgan("common"));
@@ -67,6 +71,7 @@ app.post('/register', async (req, res) => {
 //Profile Page backend
 app.get('/profile/:opusername', async (req, res) => {
     let result = await User.find({ "opusername": req.params.opusername });
+    console.log("abcd");
     if (result.length > 0) {
         res.send(result);
     }
@@ -128,8 +133,8 @@ async function getCF(username) {
             "rank": rank,
             "maxRank": maxRank,
         }
-        return data.maxRating;
-        return res.send(success(200, data));
+        console.log("ccff: ", data);
+        return Number(data.rating ?? data.maxRating ?? 0);
 
     } catch (e) {
         return 0;
@@ -143,8 +148,9 @@ async function getCC(username) {
         }
         const url = `https://www.codechef.com/users/${userHandle}`;
         const html = await axios.get(url);
+        // console.log(html);
         const $ = await cheerio.load(html.data);
-        const rating = $('.rating-number').text().slice(0, 4);
+        const rating = $('.rating-number').text().match(/\d+(\.\d+)?/)?.[0] || '';
         const stars = $('.rating-star').text();
         const globalRank = $('.rating-ranks > .inline-list > li > a').children().first().text();
         const countryRank = $('.rating-ranks > .inline-list').children().last().children().first().text();
@@ -167,38 +173,59 @@ async function getCC(username) {
         return 0;
     }
 }
+
 async function getLC(username) {
     try {
-        const userHandle = username;
-        if (!userHandle) {
-            return 0;
+        const query = `
+        query userContestRankingInfo($username: String!) {
+            userContestRanking(username: $username) {
+                rating
+                globalRanking
+            }
         }
+        `;
 
-        const url = `https://leetcode.com/${userHandle}`;
-        const html = await axios.get(url);
-        const $ = await cheerio.load(html.data);
-        const details = $('.rating-contest-graph').prev().first().first().text().toString();
-        let rating = details.slice(14, 19);
-        rating = rating.replace(",", "");
+        const response = await axios.post(
+            "https://leetcode.com/graphql",
+            {
+                query,
+                variables: { username }
+            },
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                    "Referer": `https://leetcode.com/u/${username}/`,
+                    "User-Agent":
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36"
+                }
+            }
+        );
 
-        let globalRank = details.slice(33, 40);
-        globalRank = globalRank.replace(",", "");
+        const ranking = response?.data?.data?.userContestRanking;
 
-        if (globalRank === "" || rating === "") {
+        if (!ranking) {
+            console.log("No contest data found");
             return 0;
         }
 
         const data = {
-            "userHandle": userHandle,
-            "rating": rating,
-            "globalRank": globalRank,
-        }
+            userHandle: username,
+            rating: Math.round(ranking.rating),
+            globalRank: ranking.globalRanking
+        };
+
+        console.log("LeetCode Data:", data);
 
         return data.rating;
-    } catch (e) {
+    } catch (err) {
+        console.error(
+            "LeetCode Error:",
+            err.response?.data || err.message
+        );
         return 0;
     }
 }
+
 async function getAT(username) {
     try {
         const userHandle = username;
@@ -220,9 +247,9 @@ async function getAT(username) {
 }
 function getHR(username) {
     //Not implement yet so we consider this to be 0
-    //hello
     return 0;
 }
+
 async function updateRating() {
     const currentDate = new Date();
     let formattedDate = currentDate.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
@@ -287,7 +314,7 @@ function verifyToken(req, res, next) {
 }
 
 //Implemented cron-jobs for updating rating in database
-cron.schedule('0 */4 * * *', updateRating);
+cron.schedule('*/3 * * * *', updateRating);
 
 
 //problemset 
@@ -298,6 +325,13 @@ app.post('/problemset/postproblem', async (req, res) => {
     res.send(ps);
 })
 
+
+// app.get('/rating/update', async (req, res) => {
+//     updateRating();
+
+//     res.send("Done");
+// })
+
 app.get('/problemset', async (req, res) => {
     let ps = await problemset.find({});
     // console.log("Ps", ps);
@@ -307,80 +341,7 @@ app.get('/problemset', async (req, res) => {
 const upload = multer({ storage: multer.memoryStorage() });
 
 
-app.get('/blog', async (req, res) => {
-    try {
-        const blogList = await blogModel.find({});
-        const newList = [];
-
-        for (const blog of blogList) {
-            const user = await User.findById(blog.userid);
-            newList.push({ ...blog._doc, name: user.name });
-        }
-
-        // Sort the newList based on createdDate in descending order
-        newList.sort((a, b) => b.createdAt - a.createdAt);
-
-        console.log(newList);
-        res.send(newList);
-    }
-    catch (e) {
-        console.log(e);
-        res.send("Not able to fetch blogs");
-    }
-});
-app.post('/blog', verifyToken, async (req, res) => {
-    try {
-        const { title, description, files } = req.body;
-        const userid = req._id;
-        console.log(userid);
-        let image = await cloudinary.uploader.upload(files, {
-            folder: "posts"
-        });
-
-        image = {
-            url: image.url,
-            public_id: image.public_id
-        }
-
-        //add to DB
-        const newBlog = new blogModel({
-            userid,
-            title,
-            description,
-            imagelink: image,
-        })
-
-        await newBlog.save();
-
-        res.status(201).send(newBlog);
-    }
-    catch (e) {
-        console.log(e);
-        res.status(500).send("Could not create post");
-    }
-})
-
-app.post('/blog/like', verifyToken, async (req, res) => {
-    const { _id } = req.body;
-    let userid = req._id;
-    // console.log(" dfsdf", _id, userid);
-    let givenPost = await blogModel.findOne({ _id });
-
-    if (givenPost.like.includes(userid)) {
-        //unlike karo
-        // console.log(givenPost.like);
-        const index = givenPost.like.indexOf(userid);
-        givenPost.like.splice(index,1);
-    } else {
-        givenPost.like.push(userid);
-    }
-
-    await givenPost.save();
-    // let leng = newLikeArray.length;
-    // console.log(givenPost.like.length);
-    
-    res.send({likeCount: givenPost.like.length}); // Send status code 201 (Created)
-});
+// Blog/post functionality removed as requested
 
 
 
